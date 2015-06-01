@@ -23,13 +23,15 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
-
+/* Abby Chau 2015 */
 class RateExceededException extends Exception {}
 
 class RateLimiter {
-	private $prefix, $memcache;
-	public function __construct(Memcache $memcache, $ip, $prefix = "rate") {
-		$this->memcache = $memcache;
+	private $prefix, $redis;
+	//global $redisHdl = new Redis();
+	//$redisHdl->connect('127.0.0.1', 6379);
+	public function __construct($redisHdl, $ip, $prefix = "rate") {
+		$this->redis  = $redisHdl;
 		$this->prefix = $prefix . $ip;
 	}
 
@@ -37,14 +39,15 @@ class RateLimiter {
 		$requests = 0;
 
 		foreach ($this->getKeys($minutes) as $key) {
-			$requestsInCurrentMinute = $this->memcache->get($key);
+			$requestsInCurrentMinute = $this->redis->get($key);
 			if (false !== $requestsInCurrentMinute) $requests += $requestsInCurrentMinute;
 		}
 
 		if (false === $requestsInCurrentMinute) {
-			$this->memcache->set($key, 1, 0, $minutes * 60 + 1);
+			$this->redis->set($key, 1);
+			$this->redis->setTimeout($key, $minutes * 60 + 1);
 		} else {
-			$this->memcache->increment($key, 1);
+			$this->redis->incr($key);
 		}
 
 		if ($requests > $allowedRequests) throw new RateExceededException;
